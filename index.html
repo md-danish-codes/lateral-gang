@@ -196,6 +196,23 @@ footer{text-align:center;margin-top:34px;font-weight:600;opacity:.65;font-size:.
 .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(0,0,0,.2);border-top-color:var(--ink);
   border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
 @keyframes sp{to{transform:rotate(360deg)}}
+/* ---------- LOGIN GATE ---------- */
+.gate{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  padding:20px;overflow:auto;background:linear-gradient(135deg,#7c5cff,#ff4d8d 55%,#ffb020)}
+.gate-card{background:#fff;border:3px solid var(--ink);border-radius:28px;box-shadow:8px 8px 0 rgba(35,35,35,.9);
+  max-width:600px;width:100%;padding:30px 24px;text-align:center;animation:pop .3s}
+@keyframes pop{from{transform:scale(.92);opacity:0}}
+.gate-card h2{font-size:1.5rem;margin:10px 0 4px}
+.gate-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:18px}
+@media(min-width:520px){.gate-grid{grid-template-columns:repeat(3,1fr)}}
+.gate-opt{border:2.5px solid var(--ink);border-radius:18px;padding:14px 8px;cursor:pointer;
+  background:#fafafa;box-shadow:var(--shadow-sm);transition:transform .12s;font-family:inherit}
+.gate-opt:hover{transform:translateY(-3px);background:#fff}
+.gate-opt:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(35,35,35,.9)}
+.gate-opt .ge{font-size:2rem}
+.gate-opt b{display:block;font-size:1rem;margin-top:4px}
+.gate-opt span{font-size:.82rem;opacity:.65;font-weight:600}
+.who-chip{border-style:dashed!important;cursor:pointer}
 </style>
 </head>
 <body>
@@ -206,6 +223,12 @@ footer{text-align:center;margin-top:34px;font-weight:600;opacity:.65;font-size:.
 <div class="wrap" id="app"></div>
 <div class="lb" id="lightbox"><div class="lb-box" id="lbBox"></div></div>
 <div class="toast" id="toast"></div>
+<div class="gate" id="gate" style="display:none"><div class="gate-card">
+  <div style="font-size:3rem">🕵️</div>
+  <h2>Ek baap ka hai to bata…</h2>
+  <div class="page-sub" style="margin-bottom:0"><b>tu inme se kaun hai? 😎</b><br>Apna naam chune bina entry nahi milegi!</div>
+  <div class="gate-grid" id="gateCards"></div>
+</div></div>
 <footer>Made with ❤️ by Danish &amp; naaz · Lateral Gang · देर से आए, मगर दुरुस्त आए।</footer>
 <script>
 
@@ -218,7 +241,7 @@ const CONFIG = {
 };
 
 const MEMBERS = [
-  {name:'Danish',    nick:'Admin 😎', tag:'danish', color:'#ff4d8d', emoji:'😎'},
+  {name:'danish',    nick:'extrovert', tag:'danish', color:'#ff4d8d', emoji:'😎'},
   {name:'Divyanshu', nick:'Divya',    tag:'divya',  color:'#9b5de5', emoji:'🌟'},
   {name:'Jai Prakash',nick:'JP',      tag:'jp',     color:'#4dd8ff', emoji:'⚡'},
   {name:'Sarthak',   nick:'Mota',     tag:'mota',   color:'#ff9f45', emoji:'🐼'},
@@ -227,7 +250,7 @@ const MEMBERS = [
 ];
 const FOLDERS = [...MEMBERS.map(m=>({tag:m.tag,label:m.nick})), {tag:'group',label:'Group 👥'}];
 const BIRTHDAYS = [
-  {name:'Danish',nick:'Admin 😎',emoji:'😎',day:14,month:1},
+  {name:'danish',nick:'extrovert',emoji:'😎',day:14,month:1},
   {name:'Divyanshu',nick:'Divya',emoji:'🌟',day:28,month:7},
   {name:'Harish',nick:'Bona',emoji:'🔥',day:21,month:5},
   {name:'Jai Prakash',nick:'JP',emoji:'⚡'},
@@ -239,6 +262,42 @@ const NAV = [
   {r:'#/trips',label:'🧳 Trips'},{r:'#/funny',label:'😂 Funny'},{r:'#/members',label:'👥 Members'},
   {r:'#/birthdays',label:'🎂 Birthdays'},{r:'#/upload',label:'📤 Upload'},
 ];
+
+/* ================= IDENTITY (login gate) ================= */
+const WELCOME={
+  danish:'Aa gaya Extrovert! 🎉 Chal, yaadein dekhte hain!',
+  divya:'Divya is in the house! 😎 Masti shuru!',
+  jp:'JP aa gaya! 🔥 Ab hogi asli masti!',
+  mota:'Mota aa gaya! 😂 Peti khol di jaye!',
+  bona:'Bona is here! 🔥 Swag level max!',
+  paaji:'Paaji aa gaye! 👑 Respect++',
+};
+let WHO=localStorage.getItem('lg_who')||'';
+function me(){ return MEMBERS.find(m=>m.tag===WHO); }
+function showGate(){
+  $('#gateCards').innerHTML=MEMBERS.map(m=>
+    `<div class="gate-opt" onclick="pickWho('${m.tag}')"><div class="ge">${m.emoji}</div><b>${esc(m.name)}</b><span>${esc(m.nick)}</span></div>`).join('');
+  $('#gate').style.display='flex';
+}
+function hideGate(){ $('#gate').style.display='none'; }
+async function pickWho(tag){
+  WHO=tag; localStorage.setItem('lg_who',tag);
+  hideGate(); setNav(parseHash().path);
+  toast(WELCOME[tag]||'Welcome! 🎉');
+  logVisit(); route();
+}
+function switchWho(){
+  localStorage.removeItem('lg_who'); WHO='';
+  sessionStorage.removeItem('lg_visit_logged');
+  setNav(parseHash().path); showGate();
+}
+function logVisit(){
+  if(sessionStorage.getItem('lg_visit_logged')) return;
+  sessionStorage.setItem('lg_visit_logged','1');
+  fetch(CONFIG.supabaseUrl+'/rest/v1/visits',{method:'POST',
+    headers:SB.h({'Prefer':'return=minimal'}),
+    body:JSON.stringify({who:WHO})}).catch(()=>{});
+}
 
 /* ================= HELPERS ================= */
 const $ = s => document.querySelector(s);
@@ -350,13 +409,15 @@ function parseHash(){
 }
 window.addEventListener('hashchange',route);
 function setNav(path){
+  const m=me();
   $('#navLinks').innerHTML=NAV.map(n=>{
     const p=n.r.slice(1)||'/';
     const active=(path===p)||(p!=='/'&&path.startsWith(p+'/'));
     return `<a href="${n.r}" class="${active?'active':''}">${n.label}</a>`;
-  }).join('');
+  }).join('')+(m?`<a class="who-chip" onclick="switchWho()" title="Naam badlo">👤 ${esc(m.nick)}</a>`:'');
 }
 async function route(){
+  if(!me()){ showGate(); }
   const {path,params}=parseHash();
   setNav(path);
   window.scrollTo(0,0);
@@ -582,7 +643,8 @@ async function permDelete(id,row){
 /* ================= SECRET UPLOAD PAGE ================= */
 let upState={tab:'direct',files:[],uploader:'',folders:[],funny:false};
 function renderUpload(prefFolder){
-  upState={tab:'direct',files:[],uploader:'',folders:prefFolder?[prefFolder]:[],funny:false};
+  const m=me()||{name:'?',nick:'?'};
+  upState={tab:'direct',files:[],uploader:m.name,folders:prefFolder?[prefFolder]:[],funny:false};
   const today=new Date().toISOString().slice(0,10);
   app.innerHTML=`<h1 class="page-title">📤 Upload Yaadein</h1>
     <div class="page-sub">Apni yaadein yahan upload karo — phir doston ke saath dekho! 📤</div>
@@ -606,9 +668,9 @@ function renderUpload(prefFolder){
           <div class="hint">Drive app me video pe <b>Share → link copy</b> karo. Link me <b>"Anyone with the link"</b> ON hona chahiye! 🔓</div>
         </div>
       </div>
-      <div class="field"><label>👤 Tum kaun ho?</label><div class="chips" id="upChips">
-        ${MEMBERS.map(m=>`<button class="chip uploader" data-u="${esc(m.name)}" onclick="pickUploader(this)">${m.emoji} ${esc(m.nick)}</button>`).join('')}
-      </div></div>
+      <div class="field"><label>👤 Uploading as</label>
+        <div class="secret-note" style="margin:0">😎 <b>${esc(m.name)} (${esc(m.nick)})</b> &nbsp;<a href="javascript:void(0)" onclick="switchWho()" style="font-size:.85rem">badlo</a></div>
+      </div>
       <div class="field"><label>✍️ Caption (optional)</label>
         <input type="text" id="upCaption" placeholder="Kuch likhna ho to... 😄" maxlength="200"></div>
       <div class="field"><label>📅 Date</label><input type="date" id="upDate" value="${today}"></div>
@@ -656,7 +718,7 @@ function collectTags(){
   return tags;
 }
 function validateMeta(){
-  if(!upState.uploader){ toast('Pehle batao tum kaun ho! 👤'); return false; }
+  if(!upState.uploader || upState.uploader==='?'){ toast('Pehle apna naam chuno! 👤'); showGate(); return false; }
   if(!upState.folders.length){ toast('Kam se kam ek folder select karo! 📁'); return false; }
   return true;
 }
@@ -713,7 +775,10 @@ async function renderAdmin(){
     <div class="secret-note">🗑️ <b>Trash:</b> delete ki hui cheezein yahan aati hain. <b>Restore</b> se wapas, <b>Permanent Delete</b> se hamesha ke liye jayegi.<br>
     <small>Note: Cloudinary se file turant tabhi hategi jab upload ke 10 min ke andar permanent delete ho — purani files ke liye Cloudinary Media Library se manually saaf kar dena.</small></div>
     <h2 style="margin:14px 0 10px">🗑️ Trash (<span id="trashCount">...</span>)</h2>
-    <div id="trashList"><div class="empty"><span class="spin"></span> Loading...</div></div>`;
+    <div id="trashList"><div class="empty"><span class="spin"></span> Loading...</div></div>
+    <h2 style="margin:18px 0 10px">👀 Visit Log <small style="font-weight:500;opacity:.6">(kaun, kab aaya)</small></h2>
+    <div id="visitLog"><div class="empty"><span class="spin"></span> Loading...</div></div>
+    <div class="secret-note" style="margin-top:10px">📌 Ye log <b>sirf tum</b> dekh sakte ho. Pehli baar ke liye Supabase SQL editor me <b>visits</b> table banao — SQL maine de di hai!</div>`;
   try{
     const rows=await SB.trash();
     $('#trashCount').textContent=rows.length;
@@ -727,6 +792,26 @@ async function renderAdmin(){
       :`<div class="empty"><span class="big">✨</span>Trash khaali hai — sab safe hai!</div>`;
     window._trashRows=Object.fromEntries(rows.map(r=>[r.id,r]));
   }catch(e){ $('#trashList').innerHTML=`<div class="empty"><span class="big">😅</span>Load nahi ho paya.</div>`; }
+  loadVisits();
+}
+async function loadVisits(){
+  const el=$('#visitLog'); if(!el) return;
+  try{
+    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/visits?select=who,visited_at&order=visited_at.desc&limit=60`,{headers:SB.h()});
+    if(!r.ok) throw 0;
+    const rows=await r.json();
+    el.innerHTML=rows.length? `<div class="mgrid">`+rows.map(v=>{
+      const m=MEMBERS.find(x=>x.tag===v.who);
+      const d=new Date(v.visited_at);
+      const when=d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+', '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+      return `<div class="mcard" style="cursor:default"><div style="font-size:2.2rem;text-align:center;padding-top:12px">${m?m.emoji:'👤'}</div>
+        <div class="meta" style="text-align:center"><div class="cap">${esc(m?m.name+' ('+m.nick+')':v.who)}</div>
+        <div class="sub">🕒 ${when}</div></div></div>`;
+    }).join('')+`</div>`
+    :`<div class="empty"><span class="big">👀</span>Abhi koi visit nahi hui.</div>`;
+  }catch(e){
+    el.innerHTML=`<div class="empty"><span class="big">🛠️</span>Visit log ke liye Supabase me <b>visits</b> table banana padegi.<br>SQL maine bhej di hai — ek baar chala do!</div>`;
+  }
 }
 async function permDeleteById(id){
   const row=(window._trashRows||{})[id]||null;
