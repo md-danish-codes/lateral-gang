@@ -350,22 +350,25 @@ function parseHash(){
 }
 window.addEventListener('hashchange',route);
 function setNav(path){
-  $('#navLinks').innerHTML=NAV.map(n=>
-    `<a href="${n.r}" class="${(path===n.r||(n.r!=='#/'&&path.startsWith(n.r+'/')))?'active':''}">${n.label}</a>`).join('');
+  $('#navLinks').innerHTML=NAV.map(n=>{
+    const p=n.r.slice(1)||'/';
+    const active=(path===p)||(p!=='/'&&path.startsWith(p+'/'));
+    return `<a href="${n.r}" class="${active?'active':''}">${n.label}</a>`;
+  }).join('');
 }
 async function route(){
   const {path,params}=parseHash();
   setNav(path);
   window.scrollTo(0,0);
-  if(path==='#/upload') return renderUpload(params.get('folder'));
-  if(path==='#/admin') return renderAdmin();
-  if(path.startsWith('#/folder/')) return renderFolder(path.split('/')[2]);
-  if(path==='#/photos') return renderGallery('photo');
-  if(path==='#/videos') return renderGallery('video');
-  if(path==='#/trips') return renderTrips();
-  if(path==='#/funny') return renderFunny();
-  if(path==='#/members') return renderMembers();
-  if(path==='#/birthdays') return renderBirthdays();
+  if(path==='/upload') return renderUpload(params.get('folder'));
+  if(path==='/admin') return renderAdmin();
+  if(path.startsWith('/folder/')) return renderFolder(path.split('/')[2]);
+  if(path==='/photos') return renderGallery('photo');
+  if(path==='/videos') return renderGallery('video');
+  if(path==='/trips') return renderTrips();
+  if(path==='/funny') return renderFunny();
+  if(path==='/members') return renderMembers();
+  if(path==='/birthdays') return renderBirthdays();
   return renderHome();
 }
 
