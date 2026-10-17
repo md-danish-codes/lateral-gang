@@ -237,7 +237,7 @@ const BIRTHDAYS = [
 const NAV = [
   {r:'#/',label:'🏠 Home'},{r:'#/photos',label:'📸 Photos'},{r:'#/videos',label:'🎬 Videos'},
   {r:'#/trips',label:'🧳 Trips'},{r:'#/funny',label:'😂 Funny'},{r:'#/members',label:'👥 Members'},
-  {r:'#/birthdays',label:'🎂 Birthdays'},
+  {r:'#/birthdays',label:'🎂 Birthdays'},{r:'#/upload',label:'📤 Upload'},
 ];
 
 /* ================= HELPERS ================= */
@@ -582,8 +582,8 @@ function renderUpload(prefFolder){
   upState={tab:'direct',files:[],uploader:'',folders:prefFolder?[prefFolder]:[],funny:false};
   const today=new Date().toISOString().slice(0,10);
   app.innerHTML=`<h1 class="page-title">📤 Upload Yaadein</h1>
-    <div class="page-sub">Ye link sirf hum 6 doston ke liye hai — kahin share mat karna! 🤫</div>
-    <div class="secret-note">🔒 <b>Secret page:</b> ye public site pe kahin nahi dikhta. Photos <b>full original quality</b> me save hongi — koi compression nahi! ✨</div>
+    <div class="page-sub">Apni yaadein yahan upload karo — phir doston ke saath dekho! 📤</div>
+    <div class="secret-note">✨ Photos <b>full original quality</b> me save hongi — koi compression nahi!</div>
     <div class="up-card">
       <div class="tabs">
         <button class="tab on" id="tabDirect" onclick="upTab('direct')">📸 Photo / Chhota Video<br><small>(10MB photo · 100MB video tak)</small></button>
