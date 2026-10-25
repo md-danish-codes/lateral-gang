@@ -148,6 +148,25 @@ a{color:inherit}
 .react b{display:block;font-size:.85rem}
 .react.done{background:var(--yellow)}
 .lb-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+/* ---------- CARD FOOT (react + comment, har photo/video ke niche) ---------- */
+.card-foot{display:flex;gap:6px;padding:0 10px 12px;flex-wrap:wrap}
+.mini-react{flex:1;border:2.5px solid var(--ink);border-radius:12px;background:#fff;font-size:1rem;padding:6px 4px;cursor:pointer;box-shadow:2px 2px 0 rgba(35,35,35,.9);font-family:inherit}
+.mini-react:active{transform:scale(.94)}
+.mini-react.done{background:var(--yellow)}
+.mini-react b{font-size:.8rem}
+.mini-cmt{border:2.5px solid var(--ink);border-radius:12px;background:var(--bg3);font-size:.9rem;font-weight:700;padding:6px 12px;cursor:pointer;box-shadow:2px 2px 0 rgba(35,35,35,.9);font-family:inherit}
+.new-pill{display:inline-block;background:var(--red);color:#fff;border:2px solid var(--ink);border-radius:999px;padding:1px 10px;font-size:.72rem;font-weight:700;margin-left:6px;vertical-align:2px}
+.loadmore{width:100%;margin-top:12px}
+/* ---------- COMMENTS ---------- */
+.cmt-sec{margin-top:14px;border-top:3px dashed var(--ink);padding-top:12px}
+.cmt-head{font-weight:700;font-size:1.05rem;margin-bottom:8px}
+.cmt-row{background:#fffdf5;border:2.5px solid var(--ink);border-radius:14px;padding:9px 12px;margin-bottom:8px;font-size:.9rem}
+.cmt-row b{font-weight:700}
+.cmt-row small{opacity:.6;font-weight:500;display:block;margin-top:2px}
+.cmt-row .cmt-del{float:right;background:var(--red);color:#fff;border:2px solid var(--ink);border-radius:10px;padding:2px 9px;font-size:.75rem;font-weight:700;cursor:pointer}
+.cmt-form{display:flex;gap:8px;margin-top:8px}
+.cmt-form input{flex:1;font-family:inherit;font-size:.95rem;font-weight:500;padding:10px 13px;border:3px solid var(--ink);border-radius:14px;background:#fffdf5;outline:none}
+.cmt-form .btn{padding:10px 16px}
 /* ---------- UPLOAD ---------- */
 .up-card{background:#fff;border:3px solid var(--ink);border-radius:24px;box-shadow:var(--shadow);padding:22px;margin-bottom:18px}
 .up-card h2{margin-bottom:4px}
@@ -468,6 +487,28 @@ function thumbUrl(row){
   }catch(e){}
   return null;
 }
+/* ================= FAST-FIRST BROWSING: sirf utne pixels jitne screen dikhaye ================= */
+function cloudinaryTransform(url,trans){
+  try{
+    const u=new URL(url);
+    if(!u.hostname.includes('cloudinary.com')) return url;
+    const parts=u.pathname.split('/upload/');
+    if(parts.length!==2) return url;
+    return u.origin+parts[0]+'/upload/'+trans+'/'+parts[1];
+  }catch(e){ return url; }
+}
+/* Grid me chhota thumbnail, lightbox me capped size, original sirf Download par */
+function gridThumbUrl(row){
+  if(row.type==='photo') return cloudinaryTransform(row.url,'f_auto,q_auto,w_600');
+  return thumbUrl(row);
+}
+function lightboxMediaUrl(row){
+  if(row.type==='photo') return cloudinaryTransform(row.url,'f_auto,q_auto,w_1600');
+  return row.url;
+}
+let NEW_IDS=new Set();
+let COMMENT_COUNTS={};
+function hasReacted(id,key){ return localStorage.getItem(`lg_reacted_${id}_${key}`)==='1'; }
 
 /* ================= SUPABASE REST ================= */
 const SB = {
@@ -500,8 +541,37 @@ const SB = {
   async del(id){
     const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/media?id=eq.${id}`,{method:'DELETE',headers:this.h()});
     if(!r.ok) throw new Error('delete fail');
+  },
+  async commentsList(mediaId){
+    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments?select=*&media_id=eq.${mediaId}&order=created_at.asc&limit=500`,{headers:this.h()});
+    if(!r.ok) throw new Error('comments table missing');
+    return r.json();
+  },
+  async commentsAll(){
+    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments?select=media_id&limit=2000`,{headers:this.h()});
+    if(!r.ok) throw new Error('comments table missing');
+    return r.json();
+  },
+  async insertComment(row){
+    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments`,{method:'POST',headers:this.h({'Prefer':'return=representation'}),body:JSON.stringify(row)});
+    if(!r.ok) throw new Error('comment save fail');
+    return r.json();
+  },
+  async delComment(id){
+    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments?id=eq.${id}`,{method:'DELETE',headers:this.h()});
+    if(!r.ok) throw new Error('comment delete fail');
   }
 };
+async function loadCommentCounts(){
+  try{
+    const rows=await SB.commentsAll();
+    COMMENT_COUNTS={};
+    rows.forEach(c=>{ COMMENT_COUNTS[c.media_id]=(COMMENT_COUNTS[c.media_id]||0)+1; });
+    document.querySelectorAll('.mini-cmt[data-id]').forEach(b=>{
+      b.innerHTML=`💬 ${COMMENT_COUNTS[b.dataset.id]||0}`;
+    });
+  }catch(e){ /* comments table abhi bani nahi — counts 0 hi rahenge, site nahi tootegi */ }
+}
 
 /* ================= CLOUDINARY UPLOAD (with progress) ================= */
 function uploadToCloudinary(file,onProgress){
@@ -561,10 +631,19 @@ async function route(){
 async function loadItems(force){
   if(ITEMS.length&&!force) return ITEMS;
   ITEMS=await SB.list();
+  if(!window._newInit){
+    window._newInit=true;
+    const last=localStorage.getItem('lg_last_seen');
+    const lastT=last?new Date(last).getTime():0;
+    ITEMS.forEach(r=>{ if(new Date(r.created_at).getTime()>lastT) NEW_IDS.add(r.id); });
+    localStorage.setItem('lg_last_seen',new Date().toISOString());
+  }
+  loadCommentCounts();
   return ITEMS;
 }
 function sortItems(list){
   const k=r=>new Date(r.taken_date||r.created_at).getTime();
+  if(sortOrder==='top') return [...list].sort((a,b)=> reactionScore(b)-reactionScore(a) || k(b)-k(a));
   return [...list].sort((a,b)=> sortOrder==='new'? k(b)-k(a) : k(a)-k(b));
 }
 function sortBar(){
@@ -572,6 +651,7 @@ function sortBar(){
     <span style="font-weight:700">Sort:</span>
     <button class="btn ${sortOrder==='new'?'primary':''}" style="padding:7px 14px" onclick="setSort('new')">🆕 Naya pehle</button>
     <button class="btn ${sortOrder==='old'?'primary':''}" style="padding:7px 14px" onclick="setSort('old')">🕰️ Purana pehle</button>
+    <button class="btn ${sortOrder==='top'?'primary':''}" style="padding:7px 14px" onclick="setSort('top')">🏆 Sabse zyada loved</button>
   </div>`;
 }
 function setSort(o){ sortOrder=o; route(); }
@@ -581,21 +661,45 @@ function cardHTML(r){
   const up=esc(r.uploader||'');
   const adm=isAdmin()?`<button class="del-btn" onclick="event.stopPropagation();askDelete('${r.id}')">🗑️</button>`:'';
   const badge=r.type==='video'?'<span class="vid-badge">▶ VIDEO</span>':'';
+  const isNew=NEW_IDS.has(r.id)?'<span class="new-pill">🆕 NEW</span>':'';
+  const rc=r.reactions||{};
   let media;
   if(r.type==='video'){
-    const th=thumbUrl(r);
+    const th=gridThumbUrl(r);
     media=th?`<img class="thumb" loading="lazy" src="${esc(th)}" alt="">`
             :`<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:3rem">🎬</div>`;
-  }else media=`<img class="thumb" loading="lazy" src="${esc(r.url)}" alt="${esc(r.caption||'photo')}">`;
+  }else media=`<img class="thumb" loading="lazy" src="${esc(gridThumbUrl(r))}" alt="${esc(r.caption||'photo')}">`;
   return `<div class="mcard reveal" onclick="openLB('${r.id}')">
     ${badge}${adm}${media}
-    <div class="meta"><div class="cap">${esc(r.caption)||'📷 Yaad'}</div>
+    <div class="meta"><div class="cap">${esc(r.caption)||'📷 Yaad'}${isNew}</div>
     <div class="sub">${up?up+' · ':''}${fmtDate(r.taken_date||r.created_at)}</div></div>
+    <div class="card-foot" onclick="event.stopPropagation()">
+      ${[['laugh','😂'],['love','❤️'],['fire','🔥']].map(([k,e])=>`
+        <button class="mini-react ${hasReacted(r.id,k)?'done':''}" data-id="${r.id}" data-key="${k}" onclick="reactInline(event,'${r.id}','${k}')">${e} <b>${rc[k]||0}</b></button>`).join('')}
+      <button class="mini-cmt" data-id="${r.id}" onclick="openLB('${r.id}',true)">💬 ${COMMENT_COUNTS[r.id]||0}</button>
+    </div>
   </div>`;
+}
+let _gridSeq=0;
+function loadMoreGrid(key,btn){
+  const list=(window._gridStore||{})[key]||[];
+  const grid=document.getElementById('grid-'+key);
+  if(!grid) return;
+  const shown=grid.children.length;
+  const next=list.slice(shown,shown+24);
+  grid.insertAdjacentHTML('beforeend',next.map(cardHTML).join(''));
+  initReveals();
+  if(shown+next.length>=list.length) btn.remove();
+  else btn.textContent=`⬇️ Aur dikhao (${list.length-shown-next.length} baaki)`;
 }
 function gridHTML(list){
   if(!list.length) return `<div class="empty"><span class="big">📭</span>Abhi kuch nahi hai yahan...<br>pehli yaad ka intezaar hai! ✨</div>`;
-  return `<div class="grid">${sortItems(list).map(cardHTML).join('')}</div>`;
+  const sorted=sortItems(list);
+  const key='g'+(++_gridSeq);
+  window._gridStore=window._gridStore||{}; window._gridStore[key]=sorted;
+  let html=`<div class="grid" id="grid-${key}">${sorted.slice(0,24).map(cardHTML).join('')}</div>`;
+  if(sorted.length>24) html+=`<button class="btn loadmore" onclick="loadMoreGrid('${key}',this)">⬇️ Aur dikhao (${sorted.length-24} baaki)</button>`;
+  return html;
 }
 /* ================= BEST OF GANG (auto, reactions = vote) ================= */
 function reactionScore(r){
@@ -610,7 +714,25 @@ function bestItems(list,limit){
 }
 function rankedGridHTML(list){
   if(!list.length) return `<div class="empty"><span class="big">🏆</span>Abhi kisi yaad ko reaction nahi mila!<br>Photos pe ja ke 😂 ❤️ 🔥 dabao — best yaadein yahin aa jayengi. ✨</div>`;
-  return `<div class="grid">${list.map(cardHTML).join('')}</div>`;
+  const key='g'+(++_gridSeq);
+  window._gridStore=window._gridStore||{}; window._gridStore[key]=list;
+  let html=`<div class="grid" id="grid-${key}">${list.slice(0,24).map(cardHTML).join('')}</div>`;
+  if(list.length>24) html+=`<button class="btn loadmore" onclick="loadMoreGrid('${key}',this)">⬇️ Aur dikhao (${list.length-24} baaki)</button>`;
+  return html;
+}
+async function reactInline(ev,id,key){
+  ev.stopPropagation();
+  const r=ITEMS.find(x=>x.id===id); if(!r) return;
+  if(hasReacted(id,key)){ toast('Ek baar react kar diya! 😄'); return; }
+  const cur=Object.assign({laugh:0,love:0,fire:0},r.reactions||{});
+  cur[key]=(cur[key]||0)+1;
+  try{
+    const [u]=await SB.patch(id,{reactions:cur});
+    r.reactions=u.reactions; localStorage.setItem(`lg_reacted_${id}_${key}`,'1');
+    document.querySelectorAll(`.mini-react[data-id="${id}"][data-key="${key}"]`).forEach(b=>{
+      b.classList.add('done'); b.innerHTML=`${b.textContent.trim().split(' ')[0]} <b>${u.reactions[key]||0}</b>`;
+    });
+  }catch(e){ toast('Oops, try again! 😅'); }
 }
 
 /* ================= PAGES ================= */
@@ -619,6 +741,7 @@ async function renderHome(){
     <div class="tagline">देर से आए, मगर दुरुस्त आए।</div>
     <p>6 lateral-entry doston ki yaadon ka ghar — photos, videos, trips aur woh funny moments jo kabhi nahi bhoolne wale! 📸</p>
     <div class="stats" id="stats"><span class="spin"></span></div></div>
+  <div id="homeNew"></div>
   <h2 class="page-title">👥 Doston ke Albums</h2><div class="page-sub">Kisi dost pe tap karo — uski saari yaadein (solo + group)!</div>
   <div id="homeMembers"><div class="empty"><span class="spin"></span> Loading...</div></div>
   <h2 class="page-title" style="margin-top:24px">🌟 Group &amp; Videos</h2><div class="page-sub">Sabse badi masti yahin hai!</div>
@@ -649,6 +772,10 @@ async function renderHome(){
         <div class="avatar" style="background:linear-gradient(135deg,#4dd8ff,#9b5de5)">🎬</div>
         <h3>Videos</h3><span class="nick">Motion wali masti</span>
         <span class="count">${vd} videos</span></a>`+`</div>`;
+    const newItems=items.filter(r=>NEW_IDS.has(r.id));
+    $('#homeNew').innerHTML=newItems.length
+      ?`<h2 class="page-title">🆕 New for you</h2><div class="page-sub">Tumhare last visit ke baad aayi yaadein — in par react/comment karo! 👇</div>${gridHTML(newItems)}`
+      :'';
     $('#homeBest').innerHTML=rankedGridHTML(bestItems(items,6));
     $('#latest').innerHTML=gridHTML(items.slice(0,12));
   }catch(e){ $('#latest').innerHTML=`<div class="empty"><span class="big">😅</span>Load nahi ho paya — internet check karke refresh karo!</div>`; }
@@ -733,7 +860,7 @@ function renderBirthdays(){
 }
 
 /* ================= LIGHTBOX ================= */
-function openLB(id){
+function openLB(id,focusComments){
   const r=ITEMS.find(x=>x.id===id); if(!r) return;
   const tags=(r.tags||[]).filter(t=>!t.startsWith('trip:')&&t!=='funny').map(t=>{
     const f=FOLDERS.find(x=>x.tag===t);
@@ -744,8 +871,8 @@ function openLB(id){
   const media = r.type==='video'
     ? (isDrive(r)
         ? `<iframe class="lb-media" style="height:300px" src="${esc(playUrl(r))}" allow="autoplay;fullscreen" allowfullscreen></iframe>`
-        : `<video class="lb-media" src="${esc(playUrl(r))}" controls playsinline preload="metadata"></video>`)
-    : `<img class="lb-media" src="${esc(r.url)}" alt="">`;
+        : `<video class="lb-media" src="${esc(playUrl(r))}" controls playsinline preload="none" poster="${esc(gridThumbUrl(r)||'')}"></video>`)
+    : `<img class="lb-media" src="${esc(lightboxMediaUrl(r))}" alt="">`;
   const rk=k=>`lg_reacted_${r.id}_${k}`;
   const reacted=k=>localStorage.getItem(rk(k))==='1';
   $('#lbBox').innerHTML=`<button class="lb-close" onclick="closeLB()">✕</button>${media}
@@ -756,12 +883,55 @@ function openLB(id){
       ${[['laugh','😂','Haha'],['love','❤️','Love'],['fire','🔥','Lit']].map(([k,e,l])=>`
         <button class="react ${reacted(k)?'done':''}" onclick="react('${r.id}','${k}')">${e}<b>${(r.reactions||{})[k]||0} ${l}</b></button>`).join('')}
     </div>
+    <div class="cmt-sec" id="cmtSec">
+      <div class="cmt-head">💬 Comments <span style="opacity:.6;font-size:.85rem">(${COMMENT_COUNTS[r.id]||0})</span></div>
+      <div id="cmtList"><span class="spin"></span> Loading...</div>
+      <div class="cmt-form">
+        <input id="cmtInput" maxlength="200" placeholder="Kuch likho... (200 characters tak)">
+        <button class="btn primary" onclick="sendComment('${r.id}')">Bhejo</button>
+      </div>
+      <div style="font-size:.8rem;opacity:.6;font-weight:500;margin-top:6px">Naam wahi lagega jo gate par chuna tha. Admin comment delete kar sakta hai.</div>
+    </div>
     <div class="lb-actions">
       <a class="btn green" href="${esc(downloadUrl(r))}" download target="_blank" rel="noopener">⬇️ Original Download</a>
       ${isAdmin()?`<button class="btn" style="background:var(--red);color:#fff" onclick="askDelete('${r.id}')">🗑️ Delete</button>`:''}
     </div>`;
   $('#lightbox').classList.add('open');
   document.body.style.overflow='hidden';
+  loadComments(r.id);
+  if(focusComments) setTimeout(()=>{ const inp=$('#cmtInput'); if(inp){ inp.scrollIntoView({block:'center'}); inp.focus(); } },150);
+}
+async function loadComments(mediaId){
+  const el=$('#cmtList'); if(!el) return;
+  try{
+    const rows=await SB.commentsList(mediaId);
+    COMMENT_COUNTS[mediaId]=rows.length;
+    el.innerHTML=rows.length? rows.map(c=>`
+      <div class="cmt-row">
+        ${isAdmin()?`<button class="cmt-del" onclick="deleteComment('${c.id}','${mediaId}')">✕</button>`:''}
+        <b>${esc(c.author||'Dost')}</b> · ${esc(c.text||'')}
+        <small>📅 ${fmtDate(c.created_at)}</small>
+      </div>`).join('')
+      :`<div style="opacity:.65;font-weight:500">Abhi koi comment nahi — pehla comment tum likho! ✍️</div>`;
+  }catch(e){
+    el.innerHTML=`<div style="opacity:.65;font-weight:500">Comments abhi load nahi ho paye — Supabase me comments table banana baaki ho sakta hai.</div>`;
+  }
+}
+async function sendComment(mediaId){
+  const inp=$('#cmtInput'); if(!inp) return;
+  const text=inp.value.trim().slice(0,200);
+  if(!text){ toast('Pehle kuch likho! ✍️'); return; }
+  const m=me();
+  if(!m){ toast('Pehle apna naam chuno! 👤'); showGate(); return; }
+  try{
+    await SB.insertComment({media_id:mediaId,author:m.name,text});
+    inp.value=''; await loadComments(mediaId); loadCommentCounts(); toast('Comment aa gaya! 💬');
+  }catch(e){ toast('Comment save nahi hua — comments table check karo! 😅'); }
+}
+async function deleteComment(id,mediaId){
+  if(!confirm('Ye comment delete karna hai?')) return;
+  try{ await SB.delComment(id); await loadComments(mediaId); loadCommentCounts(); }
+  catch(e){ toast('Delete nahi ho paya 😅'); }
 }
 function closeLB(){ $('#lightbox').classList.remove('open'); document.body.style.overflow=''; }
 $('#lightbox').addEventListener('click',e=>{ if(e.target.id==='lightbox') closeLB(); });
@@ -891,30 +1061,71 @@ function validateMeta(){
   if(!upState.folders.length){ toast('Kam se kam ek folder select karo! 📁'); return false; }
   return true;
 }
+/* Browser me hi photo chhoti karo: max 1600px, ~1MB target. Date form se aati hai, EXIF par depend nahi, isliye date nahi bigdegi. Video compress nahi karte. */
+function compressImage(file){
+  return new Promise(resolve=>{
+    if(!file.type.startsWith('image/') || file.size<=1048576){ resolve(file); return; }
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const scale=Math.min(1,1600/Math.max(img.width,img.height));
+      const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      cv.toBlob(b=>{
+        if(b && b.size<file.size) resolve(new File([b],file.name.replace(/\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'}));
+        else resolve(file);
+      },'image/jpeg',0.82);
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); resolve(file); };
+    img.src=url;
+  });
+}
+async function uploadOneFile(i,ctx){
+  const f=upState.files[i], st=$(`#st${i}`), bar=$(`#bar${i}`);
+  const isV=f.type.startsWith('video');
+  let upFile=f;
+  if(!isV){
+    st.textContent='🗜️ Compress ho rahi hai...';
+    upFile=await compressImage(f);
+    if(upFile!==f) st.textContent=`🗜️ ${(f.size/1048576).toFixed(1)}MB → ${(upFile.size/1048576).toFixed(1)}MB`;
+  }
+  const max=isV?100*1048576:10*1048576;
+  if(upFile.size>max){ st.textContent=isV?'❌ 100MB se bada — Drive wala tab use karo!':'❌ Compress ke baad bhi 10MB se badi hai'; return false; }
+  st.textContent='⏳ Uploading...';
+  const j=await uploadToCloudinary(upFile,p=>{bar.style.width=p+'%';});
+  st.textContent='💾 Saving...';
+  await SB.insert({url:j.secure_url,public_id:j.public_id,delete_token:j.delete_token||null,
+    type:isV?'video':'photo',caption:ctx.caption||null,uploader:upState.uploader,
+    taken_date:ctx.date,tags:ctx.tags,reactions:{laugh:0,love:0,fire:0},trashed:false});
+  ITEMS=[]; st.textContent='✅ Ho gaya!'; return true;
+}
+async function retryUpload(i){
+  const ctx=window._retryCtx; if(!ctx) return;
+  const st=$(`#st${i}`);
+  try{ if(await uploadOneFile(i,ctx)){ st.textContent='✅ Ho gaya! (retry)'; toast('🎉 Retry se ho gaya!'); } }
+  catch(e){ st.innerHTML=`❌ Fail — <button class="btn" style="padding:4px 10px;font-size:.8rem" onclick="retryUpload(${i})">↻ Retry</button>`; }
+}
 async function doUpload(){
   if(upState.tab==='drive') return doDriveUpload();
   if(!validateMeta()) return;
   if(!upState.files.length){ toast('Pehle files select karo! 📎'); return; }
   const btn=$('#upBtn'); btn.disabled=true;
-  const tags=collectTags(), caption=$('#upCaption').value.trim(), date=$('#upDate').value||null;
+  const ctx={tags:collectTags(), caption:$('#upCaption').value.trim(), date:$('#upDate').value||null};
+  window._retryCtx=ctx;
   let ok=0,fail=0;
   for(let i=0;i<upState.files.length;i++){
-    const f=upState.files[i], st=$(`#st${i}`), bar=$(`#bar${i}`);
-    const isV=f.type.startsWith('video');
-    const max=isV?100*1048576:10*1048576;
-    if(f.size>max){ st.textContent=isV?'❌ 100MB se bada — Drive wala tab use karo!':'❌ 10MB se badi photo nahi hogi'; fail++; continue; }
-    try{
-      st.textContent='⏳ Uploading...';
-      const j=await uploadToCloudinary(f,p=>{bar.style.width=p+'%';});
-      st.textContent='💾 Saving...';
-      await SB.insert({url:j.secure_url,public_id:j.public_id,delete_token:j.delete_token||null,
-        type:isV?'video':'photo',caption:caption||null,uploader:upState.uploader,
-        taken_date:date,tags,reactions:{laugh:0,love:0,fire:0},trashed:false});
-      ITEMS=[]; st.textContent='✅ Ho gaya!'; ok++;
-    }catch(e){ st.textContent='❌ Fail — dobara try karo'; fail++; }
+    $('#upStatus').innerHTML=`<div class="secret-note">⏳ Uploading ${i+1}/${upState.files.length}...</div>`;
+    try{ if(await uploadOneFile(i,ctx)) ok++; else fail++; }
+    catch(e){
+      const st=$(`#st${i}`);
+      st.innerHTML=`❌ Fail — <button class="btn" style="padding:4px 10px;font-size:.8rem" onclick="retryUpload(${i})">↻ Retry</button>`;
+      fail++;
+    }
   }
   btn.disabled=false;
-  $('#upStatus').innerHTML=`<div class="secret-note succ-pop">🎉 <b>${ok} upload</b> ho gaye!${fail?` ❌ ${fail} fail hue.`:''}</div>`;
+  $('#upStatus').innerHTML=`<div class="secret-note succ-pop">🎉 <b>${ok} upload</b> ho gaye!${fail?` ❌ ${fail} fail hue — unke neeche Retry dabao, poora batch dobara nahi chadhana padega.`:''}</div>`;
   if(ok) sfx.success();
   toast(ok?`🎉 ${ok} yaadein save ho gayin!`:'Kuch upload nahi hua 😅');
 }
