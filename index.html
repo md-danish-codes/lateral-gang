@@ -913,7 +913,7 @@ async function sendComment(mediaId){
   const r=ITEMS.find(x=>x.id===mediaId); if(!r) return;
   try{
     const comments=[...getComments(r),{author:m.name,text,at:new Date().toISOString()}];
-    const [u]=await SB.patch(mediaId,Object.assign({},r.reactions||{},{comments}));
+    const [u]=await SB.patch(mediaId,{reactions:Object.assign({},r.reactions||{},{comments})});
     r.reactions=u.reactions;
     inp.value=''; await loadComments(mediaId); toast('Comment aa gaya! 💬');
   }catch(e){ toast('Comment save nahi hua, dobara try karo! 😅'); }
@@ -923,7 +923,7 @@ async function deleteComment(idx,mediaId){
   const r=ITEMS.find(x=>x.id===mediaId); if(!r) return;
   try{
     const comments=getComments(r).filter((_,i)=>i!==idx);
-    const [u]=await SB.patch(mediaId,Object.assign({},r.reactions||{},{comments}));
+    const [u]=await SB.patch(mediaId,{reactions:Object.assign({},r.reactions||{},{comments})});
     r.reactions=u.reactions;
     await loadComments(mediaId);
   }catch(e){ toast('Delete nahi ho paya 😅'); }
