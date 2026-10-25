@@ -213,12 +213,55 @@ footer{text-align:center;margin-top:34px;font-weight:600;opacity:.65;font-size:.
 .gate-opt b{display:block;font-size:1rem;margin-top:4px}
 .gate-opt span{font-size:.82rem;opacity:.65;font-weight:600}
 .who-chip{border-style:dashed!important;cursor:pointer}
+/* ---------- ANIMATIONS ---------- */
+.page-in{animation:pageIn .35s ease}
+@keyframes pageIn{from{opacity:0;transform:translateY(12px)}}
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .55s ease,transform .55s ease}
+.reveal.in{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}.page-in{animation:none}}
+.mcard{transition:transform .18s,box-shadow .18s}
+.mcard:hover{transform:translateY(-5px) rotate(-.6deg);box-shadow:7px 7px 0 rgba(35,35,35,.9)}
+.member-card{transition:transform .18s,box-shadow .18s}
+.member-card:hover{transform:translateY(-5px) scale(1.03);box-shadow:7px 7px 0 rgba(35,35,35,.9)}
+.nav-links a{transition:transform .12s,background .15s}
+.nav-links a:hover{transform:translateY(-2px)}
+.gate-opt{transition:transform .15s,background .15s}
+.btn{transition:transform .12s}
+.btn:hover{transform:translateY(-2px)}
+.mgrid.big{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.mgrid.big .avatar{width:84px;height:84px;font-size:2.6rem}
+/* ---------- HAMBURGER DRAWER ---------- */
+.ham{margin-left:8px;font-size:1.25rem;background:#fff;border:2.5px solid var(--ink);border-radius:12px;
+  padding:6px 12px;cursor:pointer;box-shadow:var(--shadow-sm);font-family:inherit;flex-shrink:0}
+.ham:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(35,35,35,.9)}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:280px;max-width:86vw;background:#fff;z-index:300;
+  border-left:3px solid var(--ink);transform:translateX(105%);transition:transform .28s ease;
+  display:flex;flex-direction:column;padding:20px 16px;box-shadow:-8px 0 24px rgba(0,0,0,.15)}
+.drawer.open{transform:none}
+.drawer-ov{position:fixed;inset:0;background:rgba(35,35,35,.45);z-index:290;opacity:0;pointer-events:none;transition:opacity .25s}
+.drawer-ov.show{opacity:1;pointer-events:auto}
+.drawer-head{font-size:1.35rem;font-weight:700;margin-bottom:14px;text-align:center}
+.drawer nav a{display:block;text-decoration:none;font-weight:600;padding:12px 14px;border-radius:14px;
+  border:2.5px solid var(--ink);margin-bottom:8px;background:#fafafa;box-shadow:var(--shadow-sm)}
+.drawer nav a:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(35,35,35,.9)}
+.drawer-foot{margin-top:auto}
+/* ---------- WELCOME OVERLAY ---------- */
+.welcome-ov{position:fixed;inset:0;z-index:250;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(35,35,35,.35)}
+.welcome-card{background:#fff;border:3px solid var(--ink);border-radius:28px;box-shadow:8px 8px 0 rgba(35,35,35,.9);
+  max-width:440px;width:100%;padding:36px 28px;text-align:center;animation:wpop .35s cubic-bezier(.2,1.4,.4,1)}
+@keyframes wpop{from{transform:scale(.7);opacity:0}}
+.welcome-msg{font-size:1.35rem;font-weight:700;margin-top:10px;line-height:1.55}
+/* ---------- UPLOAD SUCCESS ---------- */
+@keyframes succPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.06)}100%{transform:scale(1);opacity:1}}
+.succ-pop{animation:succPop .45s cubic-bezier(.2,1.4,.4,1)}
 </style>
 </head>
 <body>
 <nav class="nav"><div class="nav-inner">
   <a class="logo" href="#/">🎉 <span class="lg-badge">Lateral Gang</span></a>
   <div class="nav-links" id="navLinks"></div>
+  <button class="ham" onclick="toggleDrawer()" aria-label="Menu">☰</button>
 </div></nav>
 <div class="wrap" id="app"></div>
 <div class="lb" id="lightbox"><div class="lb-box" id="lbBox"></div></div>
@@ -229,6 +272,20 @@ footer{text-align:center;margin-top:34px;font-weight:600;opacity:.65;font-size:.
   <div class="page-sub" style="margin-bottom:0"><b>tu inme se kaun hai? 😎</b><br>Apna naam chune bina entry nahi milegi!</div>
   <div class="gate-grid" id="gateCards"></div>
 </div></div>
+<div class="welcome-ov" id="welcomeOv" style="display:none"><div class="welcome-card">
+  <div style="font-size:3.5rem" id="welcomeEmoji">🎉</div>
+  <div class="welcome-msg" id="welcomeMsg"></div>
+  <div style="opacity:.55;font-size:.85rem;font-weight:600;margin-top:10px">Tap karke aage badho 👆</div>
+</div></div>
+<div class="drawer-ov" id="drawerOv" onclick="toggleDrawer(false)"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">🎉 Lateral Gang</div>
+  <nav id="drawerLinks"></nav>
+  <div class="drawer-foot">
+    <button class="btn" style="width:100%;margin-bottom:8px" onclick="switchWho();toggleDrawer(false)">👤 Naam badlo</button>
+    <button class="btn" style="width:100%" id="soundBtn" onclick="toggleSound()">🔊 Sound: ON</button>
+  </div>
+</aside>
 <footer>Made with ❤️ by Danish &amp; naaz · Lateral Gang · देर से आए, मगर दुरुस्त आए।</footer>
 <script>
 
@@ -260,7 +317,7 @@ const BIRTHDAYS = [
 const NAV = [
   {r:'#/',label:'🏠 Home'},{r:'#/photos',label:'📸 Photos'},{r:'#/videos',label:'🎬 Videos'},
   {r:'#/trips',label:'🧳 Trips'},{r:'#/funny',label:'😂 Funny'},{r:'#/members',label:'👥 Members'},
-  {r:'#/birthdays',label:'🎂 Birthdays'},{r:'#/upload',label:'📤 Upload'},
+  {r:'#/birthdays',label:'🎂 Birthdays'},{r:'#/best',label:'🏆 Best'},{r:'#/upload',label:'📤 Upload'},
 ];
 
 /* ================= IDENTITY (login gate) ================= */
@@ -283,7 +340,8 @@ function hideGate(){ $('#gate').style.display='none'; }
 async function pickWho(tag){
   WHO=tag; localStorage.setItem('lg_who',tag);
   hideGate(); setNav(parseHash().path);
-  toast(WELCOME[tag]||'Welcome! 🎉');
+  const m=me();
+  showWelcome(WELCOME[tag]||'Welcome! 🎉', m?m.emoji:'🎉');
   logVisit(); route();
 }
 function switchWho(){
@@ -297,6 +355,70 @@ function logVisit(){
   fetch(CONFIG.supabaseUrl+'/rest/v1/visits',{method:'POST',
     headers:SB.h({'Prefer':'return=minimal'}),
     body:JSON.stringify({who:WHO})}).catch(()=>{});
+}
+
+/* ================= SOUND FX (Web Audio, koi file nahi!) ================= */
+let SOUND=localStorage.getItem('lg_sound')!=='0';
+let AC=null;
+function ac(){
+  if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(AC&&AC.state==='suspended') AC.resume();
+  return AC;
+}
+function tone(f,d,type,v,delay){
+  if(!SOUND) return;
+  const c=ac(); if(!c) return;
+  try{
+    const t=c.currentTime+(delay||0);
+    const o=c.createOscillator(), g=c.createGain();
+    o.type=type||'sine'; o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(v||.12,t+.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t+d+.05);
+  }catch(e){}
+}
+const sfx={
+  click(){ tone(700,.07,'square',.05); },
+  pop(){ tone(500,.09,'sine',.12); tone(760,.1,'sine',.12,.07); },
+  welcome(){ [523,659,784,1047].forEach((f,i)=>tone(f,.16,'triangle',.12,i*.09)); },
+  success(){ [523,659,784].forEach((f,i)=>tone(f,.14,'triangle',.12,i*.08)); tone(1047,.32,'triangle',.12,.26); },
+  trash(){ tone(300,.15,'sawtooth',.06); tone(190,.22,'sawtooth',.06,.1); },
+};
+function toggleSound(){
+  SOUND=!SOUND; localStorage.setItem('lg_sound',SOUND?'1':'0');
+  $('#soundBtn').textContent=SOUND?'🔊 Sound: ON':'🔇 Sound: OFF';
+  if(SOUND) sfx.pop();
+}
+document.addEventListener('click',e=>{
+  if(e.target.closest('.btn,.gate-opt,.member-card,.tab,.chip')) sfx.click();
+});
+/* ---- Welcome overlay ---- */
+function showWelcome(msg,emoji){
+  $('#welcomeMsg').textContent=msg;
+  $('#welcomeEmoji').textContent=emoji||'🎉';
+  const ov=$('#welcomeOv'); ov.style.display='flex';
+  sfx.welcome();
+  clearTimeout(ov._h); ov._h=setTimeout(hideWelcome,2800);
+  ov.onclick=hideWelcome;
+}
+function hideWelcome(){ $('#welcomeOv').style.display='none'; }
+/* ---- Hamburger drawer ---- */
+function toggleDrawer(open){
+  const d=$('#drawer'), o=$('#drawerOv');
+  const show=open===undefined ? !d.classList.contains('open') : open;
+  d.classList.toggle('open',show); o.classList.toggle('show',show);
+}
+/* ---- Scroll reveal ---- */
+let revObs=null;
+function initReveals(){
+  const els=document.querySelectorAll('.reveal:not(.in)');
+  if(!('IntersectionObserver' in window)){ els.forEach(e=>e.classList.add('in')); return; }
+  revObs=revObs||new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting){ e.target.classList.add('in'); revObs.unobserve(e.target); }
+  }),{threshold:.1});
+  els.forEach(el=>revObs.observe(el));
 }
 
 /* ================= HELPERS ================= */
@@ -409,28 +531,30 @@ function parseHash(){
 }
 window.addEventListener('hashchange',route);
 function setNav(path){
-  const m=me();
   $('#navLinks').innerHTML=NAV.map(n=>{
     const p=n.r.slice(1)||'/';
     const active=(path===p)||(p!=='/'&&path.startsWith(p+'/'));
     return `<a href="${n.r}" class="${active?'active':''}">${n.label}</a>`;
-  }).join('')+(m?`<a class="who-chip" onclick="switchWho()" title="Naam badlo">👤 ${esc(m.nick)}</a>`:'');
+  }).join('');
 }
 async function route(){
   if(!me()){ showGate(); }
   const {path,params}=parseHash();
   setNav(path);
   window.scrollTo(0,0);
-  if(path==='/upload') return renderUpload(params.get('folder'));
-  if(path==='/admin') return renderAdmin();
-  if(path.startsWith('/folder/')) return renderFolder(path.split('/')[2]);
-  if(path==='/photos') return renderGallery('photo');
-  if(path==='/videos') return renderGallery('video');
-  if(path==='/trips') return renderTrips();
-  if(path==='/funny') return renderFunny();
-  if(path==='/members') return renderMembers();
-  if(path==='/birthdays') return renderBirthdays();
-  return renderHome();
+  app.classList.remove('page-in'); void app.offsetWidth; app.classList.add('page-in');
+  if(path==='/upload') await renderUpload(params.get('folder'));
+  else if(path==='/admin') await renderAdmin();
+  else if(path.startsWith('/folder/')) await renderFolder(path.split('/')[2]);
+  else if(path==='/photos') await renderGallery('photo');
+  else if(path==='/videos') await renderGallery('video');
+  else if(path==='/trips') await renderTrips();
+  else if(path==='/funny') await renderFunny();
+  else if(path==='/members') await renderMembers();
+  else if(path==='/best') await renderBest();
+  else if(path==='/birthdays') await renderBirthdays();
+  else await renderHome();
+  initReveals();
 }
 
 /* ================= DATA ================= */
@@ -463,7 +587,7 @@ function cardHTML(r){
     media=th?`<img class="thumb" loading="lazy" src="${esc(th)}" alt="">`
             :`<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:3rem">🎬</div>`;
   }else media=`<img class="thumb" loading="lazy" src="${esc(r.url)}" alt="${esc(r.caption||'photo')}">`;
-  return `<div class="mcard" onclick="openLB('${r.id}')">
+  return `<div class="mcard reveal" onclick="openLB('${r.id}')">
     ${badge}${adm}${media}
     <div class="meta"><div class="cap">${esc(r.caption)||'📷 Yaad'}</div>
     <div class="sub">${up?up+' · ':''}${fmtDate(r.taken_date||r.created_at)}</div></div>
@@ -473,6 +597,21 @@ function gridHTML(list){
   if(!list.length) return `<div class="empty"><span class="big">📭</span>Abhi kuch nahi hai yahan...<br>pehli yaad ka intezaar hai! ✨</div>`;
   return `<div class="grid">${sortItems(list).map(cardHTML).join('')}</div>`;
 }
+/* ================= BEST OF GANG (auto, reactions = vote) ================= */
+function reactionScore(r){
+  const x=r.reactions||{};
+  return (x.laugh||0)+(x.love||0)+(x.fire||0);
+}
+function bestItems(list,limit){
+  return [...list].filter(r=>!r.trashed && reactionScore(r)>0)
+    .sort((a,b)=> reactionScore(b)-reactionScore(a)
+      || new Date(b.taken_date||b.created_at)-new Date(a.taken_date||a.created_at))
+    .slice(0,limit||12);
+}
+function rankedGridHTML(list){
+  if(!list.length) return `<div class="empty"><span class="big">🏆</span>Abhi kisi yaad ko reaction nahi mila!<br>Photos pe ja ke 😂 ❤️ 🔥 dabao — best yaadein yahin aa jayengi. ✨</div>`;
+  return `<div class="grid">${list.map(cardHTML).join('')}</div>`;
+}
 
 /* ================= PAGES ================= */
 async function renderHome(){
@@ -480,7 +619,13 @@ async function renderHome(){
     <div class="tagline">देर से आए, मगर दुरुस्त आए।</div>
     <p>6 lateral-entry doston ki yaadon ka ghar — photos, videos, trips aur woh funny moments jo kabhi nahi bhoolne wale! 📸</p>
     <div class="stats" id="stats"><span class="spin"></span></div></div>
-  <h2 class="page-title">✨ Fresh Yaadein</h2><div class="page-sub">Sabse latest uploads</div>
+  <h2 class="page-title">👥 Doston ke Albums</h2><div class="page-sub">Kisi dost pe tap karo — uski saari yaadein (solo + group)!</div>
+  <div id="homeMembers"><div class="empty"><span class="spin"></span> Loading...</div></div>
+  <h2 class="page-title" style="margin-top:24px">🌟 Group &amp; Videos</h2><div class="page-sub">Sabse badi masti yahin hai!</div>
+  <div id="homeSpecial"></div>
+  <h2 class="page-title" style="margin-top:24px">🏆 Best of Gang</h2><div class="page-sub">Sabse zyada reactions wali yaadein — koi chunna nahi padta, doston ke reactions hi vote hain! <a href="#/best">Saari Best dekho →</a></div>
+  <div id="homeBest"><div class="empty"><span class="spin"></span> Loading...</div></div>
+  <h2 class="page-title" style="margin-top:24px">✨ Fresh Yaadein</h2><div class="page-sub">Sabse latest uploads</div>
   <div id="latest"><div class="empty"><span class="spin"></span> Loading...</div></div>`;
   try{
     const items=await loadItems();
@@ -488,6 +633,23 @@ async function renderHome(){
     $('#stats').innerHTML=`<div class="stat"><b>${ph}</b><span>📸 Photos</span></div>
       <div class="stat"><b>${vd}</b><span>🎬 Videos</span></div>
       <div class="stat"><b>6</b><span>👥 Dost</span></div>`;
+    const counts={};
+    items.forEach(r=>(r.tags||[]).forEach(t=>{counts[t]=(counts[t]||0)+1;}));
+    $('#homeMembers').innerHTML=`<div class="mgrid big">`+MEMBERS.map(m=>`
+      <a class="member-card reveal" href="#/folder/${m.tag}">
+        <div class="avatar" style="background:${m.color}">${m.emoji}</div>
+        <h3>${esc(m.name)}</h3><span class="nick">${esc(m.nick)}</span>
+        <span class="count">${counts[m.tag]||0} yaadein</span></a>`).join('')+`</div>`;
+    $('#homeSpecial').innerHTML=`<div class="mgrid big">`+`
+      <a class="member-card reveal" href="#/folder/group">
+        <div class="avatar" style="background:linear-gradient(135deg,#ff4d8d,#9b5de5)">👥</div>
+        <h3>Group</h3><span class="nick">Saare dost</span>
+        <span class="count">${counts['group']||0} yaadein</span></a>
+      <a class="member-card reveal" href="#/videos">
+        <div class="avatar" style="background:linear-gradient(135deg,#4dd8ff,#9b5de5)">🎬</div>
+        <h3>Videos</h3><span class="nick">Motion wali masti</span>
+        <span class="count">${vd} videos</span></a>`+`</div>`;
+    $('#homeBest').innerHTML=rankedGridHTML(bestItems(items,6));
     $('#latest').innerHTML=gridHTML(items.slice(0,12));
   }catch(e){ $('#latest').innerHTML=`<div class="empty"><span class="big">😅</span>Load nahi ho paya — internet check karke refresh karo!</div>`; }
 }
@@ -507,7 +669,7 @@ async function renderTrips(){
   items.forEach(r=>(r.tags||[]).forEach(t=>{ if(t.startsWith('trip:')){ const n=t.slice(5); (trips[n]=trips[n]||[]).push(r);} }));
   const names=Object.keys(trips).sort();
   $('#trips').innerHTML=names.length? names.map(n=>`
-    <div class="trip-sec"><div class="trip-head"><span class="pill">🧳</span><h2>${esc(n)}</h2>
+    <div class="trip-sec reveal"><div class="trip-head"><span class="pill">🧳</span><h2>${esc(n)}</h2>
     <span style="opacity:.6;font-weight:600">(${trips[n].length})</span></div>
     ${gridHTML(trips[n])}</div>`).join('')
     :`<div class="empty"><span class="big">🗺️</span>Abhi koi trip add nahi hui!<br>Upload karte waqt trip ka naam likh dena. ✈️</div>`;
@@ -528,7 +690,7 @@ async function renderMembers(){
       const m=memberByTag(f.tag);
       const av=m?`<div class="avatar" style="background:${m.color}">${m.emoji}</div>`
                 :`<div class="avatar" style="background:linear-gradient(135deg,#ff4d8d,#9b5de5)">👥</div>`;
-      return `<a class="member-card" href="#/folder/${f.tag}">${av}
+      return `<a class="member-card reveal" href="#/folder/${f.tag}">${av}
         <h3>${m?esc(m.name):'Group'}</h3><span class="nick">${esc(f.label)}</span>
         <span class="count">${counts[f.tag]||0} yaadein</span></a>`;
     }).join('')}</div>`;
@@ -543,16 +705,23 @@ async function renderFolder(tag){
   const items=(await loadItems()).filter(i=>(i.tags||[]).includes(tag));
   $('#fg').innerHTML=gridHTML(items);
 }
+async function renderBest(){
+  app.innerHTML=`<h1 class="page-title">🏆 Best of Gang</h1>
+    <div class="page-sub">Sabse zyada 😂 ❤️ 🔥 reactions wali yaadein, sabse pehle. Ye list apne aap banti hai — jitne zyada reactions, utni upar rank!</div>
+    <div id="best"><div class="empty"><span class="spin"></span> Loading...</div></div>`;
+  const items=await loadItems();
+  $('#best').innerHTML=rankedGridHTML(bestItems(items,30));
+}
 function renderBirthdays(){
   const now=new Date();
   const cards=BIRTHDAYS.map(b=>{
-    if(!b.day) return `<div class="bcard soon"><div class="cake">${b.emoji}</div>
+    if(!b.day) return `<div class="bcard soon reveal"><div class="cake">${b.emoji}</div>
       <h3>${esc(b.name)}</h3><div class="nick" style="font-weight:700">${esc(b.nick)}</div>
       <div class="countdown">🎂 Date jald aayegi!</div></div>`;
     let next=new Date(now.getFullYear(),b.month-1,b.day);
     if(next<now) next=new Date(now.getFullYear()+1,b.month-1,b.day);
     const days=Math.ceil((next-now)/86400000);
-    return `<div class="bcard"><div class="cake">🎂</div>
+    return `<div class="bcard reveal"><div class="cake">🎂</div>
       <div style="font-size:2rem">${b.emoji}</div><h3>${esc(b.name)}</h3>
       <div style="font-weight:700">${esc(b.nick)}</div>
       <div class="date">${b.day} ${['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][b.month]}</div>
@@ -618,7 +787,7 @@ async function doDelete(id){
   try{
     await SB.patch(id,{trashed:true});
     ITEMS=ITEMS.filter(x=>x.id!==id);
-    closeLB(); toast('Trash me bhej diya! 🗑️'); route();
+    closeLB(); sfx.trash(); toast('Trash me bhej diya! 🗑️'); route();
   }catch(e){ toast('Delete nahi ho paya 😅'); }
 }
 async function restoreItem(id){
@@ -669,7 +838,7 @@ function renderUpload(prefFolder){
         </div>
       </div>
       <div class="field"><label>👤 Uploading as</label>
-        <div class="secret-note" style="margin:0">😎 <b>${esc(m.name)} (${esc(m.nick)})</b> &nbsp;<a href="javascript:void(0)" onclick="switchWho()" style="font-size:.85rem">badlo</a></div>
+        <div class="secret-note" style="margin:0">😎 <b>${esc(m.name)} (${esc(m.nick)})</b> ke naam se upload hoga!</div>
       </div>
       <div class="field"><label>✍️ Caption (optional)</label>
         <input type="text" id="upCaption" placeholder="Kuch likhna ho to... 😄" maxlength="200"></div>
@@ -745,7 +914,8 @@ async function doUpload(){
     }catch(e){ st.textContent='❌ Fail — dobara try karo'; fail++; }
   }
   btn.disabled=false;
-  $('#upStatus').innerHTML=`<div class="secret-note">🎉 <b>${ok} upload</b> ho gaye!${fail?` ❌ ${fail} fail hue.`:''}</div>`;
+  $('#upStatus').innerHTML=`<div class="secret-note succ-pop">🎉 <b>${ok} upload</b> ho gaye!${fail?` ❌ ${fail} fail hue.`:''}</div>`;
+  if(ok) sfx.success();
   toast(ok?`🎉 ${ok} yaadein save ho gayin!`:'Kuch upload nahi hua 😅');
 }
 async function doDriveUpload(){
@@ -761,8 +931,8 @@ async function doDriveUpload(){
       taken_date:$('#upDate').value||null,tags:collectTags(),
       reactions:{laugh:0,love:0,fire:0},trashed:false});
     ITEMS=[];
-    $('#upStatus').innerHTML='<div class="secret-note">🎉 <b>Video add ho gaya!</b> Videos page pe dikhega. 🍿</div>';
-    $('#driveLink').value=''; toast('🎉 Video save ho gaya!');
+    $('#upStatus').innerHTML='<div class="secret-note succ-pop">🎉 <b>Video add ho gaya!</b> Videos page pe dikhega. 🍿</div>';
+    $('#driveLink').value=''; sfx.success(); toast('🎉 Video save ho gaya!');
   }catch(e){ $('#upStatus').innerHTML=''; toast('Oops, try again! 😅'); }
   btn.disabled=false;
 }
@@ -819,6 +989,8 @@ async function permDeleteById(id){
 }
 
 /* ================= INIT ================= */
+$('#drawerLinks').innerHTML=NAV.map(n=>`<a href="${n.r}" onclick="toggleDrawer(false)">${n.label}</a>`).join('');
+$('#soundBtn').textContent=SOUND?'🔊 Sound: ON':'🔇 Sound: OFF';
 route();
 </script>
 </body>
