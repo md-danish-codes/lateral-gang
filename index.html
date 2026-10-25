@@ -542,35 +542,19 @@ const SB = {
     const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/media?id=eq.${id}`,{method:'DELETE',headers:this.h()});
     if(!r.ok) throw new Error('delete fail');
   },
-  async commentsList(mediaId){
-    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments?select=*&media_id=eq.${mediaId}&order=created_at.asc&limit=500`,{headers:this.h()});
-    if(!r.ok) throw new Error('comments table missing');
-    return r.json();
-  },
-  async commentsAll(){
-    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments?select=media_id&limit=2000`,{headers:this.h()});
-    if(!r.ok) throw new Error('comments table missing');
-    return r.json();
-  },
-  async insertComment(row){
-    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments`,{method:'POST',headers:this.h({'Prefer':'return=representation'}),body:JSON.stringify(row)});
-    if(!r.ok) throw new Error('comment save fail');
-    return r.json();
-  },
-  async delComment(id){
-    const r=await fetch(`${CONFIG.supabaseUrl}/rest/v1/comments?id=eq.${id}`,{method:'DELETE',headers:this.h()});
-    if(!r.ok) throw new Error('comment delete fail');
-  }
 };
-async function loadCommentCounts(){
-  try{
-    const rows=await SB.commentsAll();
-    COMMENT_COUNTS={};
-    rows.forEach(c=>{ COMMENT_COUNTS[c.media_id]=(COMMENT_COUNTS[c.media_id]||0)+1; });
-    document.querySelectorAll('.mini-cmt[data-id]').forEach(b=>{
-      b.innerHTML=`💬 ${COMMENT_COUNTS[b.dataset.id]||0}`;
-    });
-  }catch(e){ /* comments table abhi bani nahi — counts 0 hi rahenge, site nahi tootegi */ }
+/* Comments: koi alag table nahi — comment usi media row ke reactions JSON ke andar save hota hai
+   (jaise reactions save hote hain). Isliye koi SQL, koi table banana nahi padta, aur comment
+   sab doston ko dikhta hai. Photo delete hogi to uske comments bhi uske saath jayenge. */
+function getComments(r){
+  return (r.reactions && Array.isArray(r.reactions.comments)) ? r.reactions.comments : [];
+}
+function loadCommentCounts(){
+  COMMENT_COUNTS={};
+  ITEMS.forEach(r=>{ COMMENT_COUNTS[r.id]=getComments(r).length; });
+  document.querySelectorAll('.mini-cmt[data-id]').forEach(b=>{
+    b.innerHTML=`💬 ${COMMENT_COUNTS[b.dataset.id]||0}`;
+  });
 }
 
 /* ================= CLOUDINARY UPLOAD (with progress) ================= */
@@ -904,18 +888,21 @@ function openLB(id,focusComments){
 async function loadComments(mediaId){
   const el=$('#cmtList'); if(!el) return;
   try{
-    const rows=await SB.commentsList(mediaId);
-    COMMENT_COUNTS[mediaId]=rows.length;
-    el.innerHTML=rows.length? rows.map(c=>`
-      <div class="cmt-row">
-        ${isAdmin()?`<button class="cmt-del" onclick="deleteComment('${c.id}','${mediaId}')">✕</button>`:''}
-        <b>${esc(c.author||'Dost')}</b> · ${esc(c.text||'')}
-        <small>📅 ${fmtDate(c.created_at)}</small>
-      </div>`).join('')
-      :`<div style="opacity:.65;font-weight:500">Abhi koi comment nahi — pehla comment tum likho! ✍️</div>`;
-  }catch(e){
-    el.innerHTML=`<div style="opacity:.65;font-weight:500">Comments abhi load nahi ho paye — Supabase me comments table banana baaki ho sakta hai.</div>`;
-  }
+    /* Doston ke naye comments bhi dikhein, isliye lightbox khulte hi fresh list lo */
+    const fresh=await SB.list();
+    if(fresh.length) ITEMS=fresh;
+  }catch(e){ /* fresh na mile to cached list se hi dikhao */ }
+  const r=ITEMS.find(x=>x.id===mediaId);
+  const rows=r?getComments(r):[];
+  COMMENT_COUNTS[mediaId]=rows.length;
+  loadCommentCounts();
+  el.innerHTML=rows.length? rows.map((c,i)=>`
+    <div class="cmt-row">
+      ${isAdmin()?`<button class="cmt-del" onclick="deleteComment(${i},'${mediaId}')">✕</button>`:''}
+      <b>${esc(c.author||'Dost')}</b> · ${esc(c.text||'')}
+      <small>📅 ${fmtDate(c.at||c.created_at)}</small>
+    </div>`).join('')
+    :`<div style="opacity:.65;font-weight:500">Abhi koi comment nahi — pehla comment tum likho! ✍️</div>`;
 }
 async function sendComment(mediaId){
   const inp=$('#cmtInput'); if(!inp) return;
@@ -923,15 +910,23 @@ async function sendComment(mediaId){
   if(!text){ toast('Pehle kuch likho! ✍️'); return; }
   const m=me();
   if(!m){ toast('Pehle apna naam chuno! 👤'); showGate(); return; }
+  const r=ITEMS.find(x=>x.id===mediaId); if(!r) return;
   try{
-    await SB.insertComment({media_id:mediaId,author:m.name,text});
-    inp.value=''; await loadComments(mediaId); loadCommentCounts(); toast('Comment aa gaya! 💬');
-  }catch(e){ toast('Comment save nahi hua — comments table check karo! 😅'); }
+    const comments=[...getComments(r),{author:m.name,text,at:new Date().toISOString()}];
+    const [u]=await SB.patch(mediaId,Object.assign({},r.reactions||{},{comments}));
+    r.reactions=u.reactions;
+    inp.value=''; await loadComments(mediaId); toast('Comment aa gaya! 💬');
+  }catch(e){ toast('Comment save nahi hua, dobara try karo! 😅'); }
 }
-async function deleteComment(id,mediaId){
+async function deleteComment(idx,mediaId){
   if(!confirm('Ye comment delete karna hai?')) return;
-  try{ await SB.delComment(id); await loadComments(mediaId); loadCommentCounts(); }
-  catch(e){ toast('Delete nahi ho paya 😅'); }
+  const r=ITEMS.find(x=>x.id===mediaId); if(!r) return;
+  try{
+    const comments=getComments(r).filter((_,i)=>i!==idx);
+    const [u]=await SB.patch(mediaId,Object.assign({},r.reactions||{},{comments}));
+    r.reactions=u.reactions;
+    await loadComments(mediaId);
+  }catch(e){ toast('Delete nahi ho paya 😅'); }
 }
 function closeLB(){ $('#lightbox').classList.remove('open'); document.body.style.overflow=''; }
 $('#lightbox').addEventListener('click',e=>{ if(e.target.id==='lightbox') closeLB(); });
